@@ -1,0 +1,5 @@
+python-telegram-bot>=21,<23
+yt-dlp
+faster-whisper
+opencv-python-headless
+python-dotenv
