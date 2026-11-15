@@ -1,6 +1,6 @@
 
 python-telegram-bot[webhooks]>=21,<23
-yt-dlp
+yt-dlp[default]
 python-dotenv
 imageio-ffmpeg
 Pillow
