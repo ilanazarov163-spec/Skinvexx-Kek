@@ -18,7 +18,7 @@ logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(message)s"
 )
 
-TOKEN = os.environ["BOT_TOKEN"]
+TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
 RENDER_URL = os.environ["RENDER_EXTERNAL_URL"].rstrip("/")
 PORT = int(os.environ.get("PORT", 10000))
 
