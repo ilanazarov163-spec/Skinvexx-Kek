@@ -1,5 +1,7 @@
-python-telegram-bot>=21,<23
+
+python-telegram-bot[webhooks]>=21,<23
 yt-dlp
-faster-whisper
-opencv-python-headless
 python-dotenv
+imageio-ffmpeg
+Pillow
+requests
