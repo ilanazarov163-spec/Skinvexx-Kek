@@ -1,6 +1,7 @@
 
 import os
 import re
+import asyncio
 import logging
 from urllib.parse import urlparse
 
@@ -13,87 +14,82 @@ from telegram.ext import (
     filters,
 )
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s"
-)
+from downloader import download_video
+
+logging.basicConfig(level=logging.INFO)
 
 TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
 RENDER_URL = os.environ["RENDER_EXTERNAL_URL"].rstrip("/")
 PORT = int(os.environ.get("PORT", 10000))
 
+download_lock = asyncio.Lock()
+
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "🔥 SKINVEXX BOT запущен!\n\n"
-        "Отправь ссылку на YouTube-видео CS2.\n\n"
-        "Я подготовлю её для анализа и нарезки.\n\n"
-        "Формат результата: TikTok 9:16."
+        "🔥 SKINVEXX BOT\n\n"
+        "Отправь ссылку на YouTube с CS2.\n"
+        "Я загружу видео и подготовлю его к анализу."
     )
 
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "📌 Команды SKINVEXX:\n"
-        "/start — запуск бота\n"
-        "/help — помощь\n\n"
-        "Просто отправь ссылку на YouTube."
+        "Отправь ссылку на YouTube.\n"
+        "Поддерживаются youtube.com и youtu.be."
     )
 
 
-async def handle_message(
-    update: Update,
-    context: ContextTypes.DEFAULT_TYPE
-):
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     message = update.message
-    text = message.text or ""
-
-    match = re.search(r"https?://\S+", text)
+    match = re.search(r"https?://\S+", message.text or "")
 
     if not match:
-        await message.reply_text(
-            "Отправь ссылку на YouTube-видео."
-        )
+        await message.reply_text("Пришли ссылку на YouTube.")
         return
 
     url = match.group(0).rstrip(".,!?)]}")
-
     host = (urlparse(url).hostname or "").lower()
 
-    if host not in (
-        "youtube.com",
-        "www.youtube.com",
-        "m.youtube.com",
-        "youtu.be",
-        "www.youtu.be",
-    ):
-        await message.reply_text(
-            "❌ Пока принимаю только ссылки YouTube."
-        )
+    if host not in ("youtube.com", "www.youtube.com",
+                    "m.youtube.com", "youtu.be", "www.youtu.be"):
+        await message.reply_text("❌ Нужна ссылка на YouTube.")
         return
 
-    await message.reply_text(
-        "✅ Ссылку получил!\n\n"
-        "Следующий этап — загрузка видео, "
-        "поиск интересного момента и автоматический монтаж.\n\n"
-        "SKINVEXX готовится к работе 🔥"
+    status = await message.reply_text(
+        "⏳ Получил ссылку!\nНачинаю загрузку видео..."
     )
+
+    try:
+        async with download_lock:
+            result = await asyncio.to_thread(download_video, url)
+
+        duration = int(result.get("duration") or 0)
+        minutes, seconds = divmod(duration, 60)
+
+        await status.edit_text(
+            "✅ ВИДЕО ЗАГРУЖЕНО!\n\n"
+            f"🎬 {result['title']}\n"
+            f"⏱ Длительность: {minutes}:{seconds:02d}\n\n"
+            "Следующий этап: AI-анализ и поиск лучшего момента."
+        )
+
+    except Exception:
+        logging.exception("Video download failed")
+        await status.edit_text(
+            "❌ Не удалось загрузить видео.\n"
+            "Возможно, оно недоступно или загрузка не поддерживается."
+        )
 
 
 def main():
-    app = (
-        Application.builder()
-        .token(TOKEN)
-        .build()
-    )
+    app = Application.builder().token(TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("help", help_command))
     app.add_handler(
         MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message)
     )
-
-    logging.info("SKINVEXX BOT starting...")
 
     app.run_webhook(
         listen="0.0.0.0",
