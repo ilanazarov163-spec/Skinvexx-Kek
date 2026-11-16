@@ -2,6 +2,8 @@
 import os
 import re
 import subprocess
+import logging
+
 import imageio_ffmpeg
 import gdown
 from faster_whisper import WhisperModel
@@ -9,13 +11,22 @@ from faster_whisper import WhisperModel
 DOWNLOAD_DIR = "downloads"
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
-# Загружаем компактную модель Whisper
+logging.basicConfig(level=logging.INFO)
+
+# Более точная модель распознавания
 whisper_model = WhisperModel(
     "base",
     device="cpu",
     compute_type="int8"
 )
 
+CS2_PROMPT = (
+    "Counter-Strike 2, CS2, карта Мираж, щель, мейн, кара, "
+    "зиги, ковры, плент, коннектор, апсы, шорт, лонг, "
+    "дефолт, фраг, килл, клатч, авик, дигл, смок, флешка, "
+    "раш, пик, Т-спавн, КТ-спавн, тиммейт, прицел, "
+    "позиция, прострел, выход, раскидка."
+)
 
 
 def get_video_info(path):
@@ -37,11 +48,13 @@ def get_video_info(path):
 
     hours, minutes, seconds = match.groups()
 
-    return int(
+    duration = (
         int(hours) * 3600
         + int(minutes) * 60
         + float(seconds)
     )
+
+    return int(duration)
 
 
 def download_video(url):
@@ -79,29 +92,32 @@ def download_video(url):
 
 
 def transcribe_video(path):
-    """
-    Распознаёт всю речь в видео.
-    Возвращает язык и фразы с таймкодами.
-    """
-
     segments, info = whisper_model.transcribe(
         path,
-        beam_size=1,
+        language="ru",
+        beam_size=5,
+        best_of=5,
         word_timestamps=True,
-        vad_filter=True
+        vad_filter=True,
+        initial_prompt=CS2_PROMPT,
+        condition_on_previous_text=True
     )
 
     transcript = []
 
     for segment in segments:
+        text = segment.text.strip()
+
+        if not text:
+            continue
+
         transcript.append({
             "start": round(segment.start, 2),
             "end": round(segment.end, 2),
-            "text": segment.text.strip()
+            "text": text
         })
 
     return {
         "language": info.language,
         "segments": transcript
     }
-
