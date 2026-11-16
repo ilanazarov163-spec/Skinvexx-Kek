@@ -11,10 +11,11 @@ os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
 # Загружаем компактную модель Whisper
 whisper_model = WhisperModel(
-    "tiny",
+    "base",
     device="cpu",
     compute_type="int8"
 )
+
 
 
 def get_video_info(path):
