@@ -1,8 +1,8 @@
 
 import os
 import re
-import json
 import subprocess
+import imageio_ffmpeg
 import gdown
 
 DOWNLOAD_DIR = "downloads"
@@ -10,21 +10,33 @@ os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
 
 def get_video_info(path):
+    ffmpeg = imageio_ffmpeg.get_ffmpeg_exe()
+
     result = subprocess.run(
-        [
-            "ffprobe",
-            "-v", "error",
-            "-show_entries", "format=duration",
-            "-of", "json",
-            path
-        ],
+        [ffmpeg, "-i", path],
         capture_output=True,
-        text=True,
-        check=True
+        text=True
     )
 
-    data = json.loads(result.stdout)
-    return int(float(data["format"]["duration"]))
+    output = result.stderr
+
+    match = re.search(
+        r"Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)",
+        output
+    )
+
+    if not match:
+        raise RuntimeError("Не удалось определить длительность видео")
+
+    hours, minutes, seconds = match.groups()
+
+    duration = (
+        int(hours) * 3600
+        + int(minutes) * 60
+        + float(seconds)
+    )
+
+    return int(duration)
 
 
 def download_video(url):
@@ -46,10 +58,10 @@ def download_video(url):
     )
 
     if not downloaded or not os.path.exists(output_path):
-        raise RuntimeError("Google Drive не отдал видео")
+        raise RuntimeError("Не удалось скачать видео")
 
     if os.path.getsize(output_path) < 1024:
-        raise RuntimeError("Скачанный файл слишком маленький")
+        raise RuntimeError("Файл слишком маленький")
 
     duration = get_video_info(output_path)
 
