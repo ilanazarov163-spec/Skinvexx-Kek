@@ -279,9 +279,9 @@ def analyze_gameplay(video_path, duration):
         raise RuntimeError("Не удалось извлечь кадры из видео")
 
     # Не отправляем слишком много изображений за один запрос.
-    if len(frames) > 24:
-        step = max(1, len(frames) // 24)
-        frames = frames[::step][:24]
+    if len(frames) > 8:
+    step = max(1, len(frames) // 8)
+    frames = frames[::step][:8]
 
     content = [
         {
