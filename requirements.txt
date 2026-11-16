@@ -6,3 +6,4 @@ imageio-ffmpeg
 Pillow
 requests
 gdown
+faster-whisper
