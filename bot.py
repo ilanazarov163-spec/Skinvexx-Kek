@@ -28,15 +28,15 @@ download_lock = asyncio.Lock()
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "🔥 SKINVEXX BOT\n\n"
-        "Отправь ссылку на YouTube с CS2.\n"
+        "Отправь ссылку на видео из Google Drive.\n"
         "Я загружу видео и подготовлю его к анализу."
     )
 
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "Отправь ссылку на YouTube.\n"
-        "Поддерживаются youtube.com и youtu.be."
+        "Отправь ссылку на видео из Google Drive.\n"
+        "Доступ должен быть открыт для всех, у кого есть ссылка."
     )
 
 
@@ -45,19 +45,24 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     match = re.search(r"https?://\S+", message.text or "")
 
     if not match:
-        await message.reply_text("Пришли ссылку на YouTube.")
+        await message.reply_text("Пришли ссылку на Google Drive.")
         return
 
     url = match.group(0).rstrip(".,!?)]}")
     host = (urlparse(url).hostname or "").lower()
 
-    if host not in ("youtube.com", "www.youtube.com",
-                    "m.youtube.com", "youtu.be", "www.youtu.be"):
-        await message.reply_text("❌ Нужна ссылка на YouTube.")
+    is_drive = host in ("drive.google.com", "www.drive.google.com")
+
+    if not is_drive:
+        await message.reply_text("❌ Сейчас поддерживаются ссылки Google Drive.")
+        return
+
+    if not re.search(r"/file/d/[a-zA-Z0-9_-]+", url):
+        await message.reply_text("❌ Нужна прямая ссылка на файл Google Drive.")
         return
 
     status = await message.reply_text(
-        "⏳ Получил ссылку!\nНачинаю загрузку видео..."
+        "⏳ Получил ссылку!\nНачинаю загрузку видео с Google Drive..."
     )
 
     try:
@@ -77,8 +82,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception:
         logging.exception("Video download failed")
         await status.edit_text(
-            "❌ Не удалось загрузить видео.\n"
-            "Возможно, оно недоступно или загрузка не поддерживается."
+            "❌ Не удалось загрузить видео.\n\n"
+            "Проверь, что доступ к файлу Google Drive открыт "
+            "для всех, у кого есть ссылка."
         )
 
 
@@ -102,3 +108,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
