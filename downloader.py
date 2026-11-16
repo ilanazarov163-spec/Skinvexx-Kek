@@ -4,9 +4,17 @@ import re
 import subprocess
 import imageio_ffmpeg
 import gdown
+from faster_whisper import WhisperModel
 
 DOWNLOAD_DIR = "downloads"
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
+
+# Загружаем компактную модель Whisper
+whisper_model = WhisperModel(
+    "tiny",
+    device="cpu",
+    compute_type="int8"
+)
 
 
 def get_video_info(path):
@@ -18,11 +26,9 @@ def get_video_info(path):
         text=True
     )
 
-    output = result.stderr
-
     match = re.search(
         r"Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)",
-        output
+        result.stderr
     )
 
     if not match:
@@ -30,13 +36,11 @@ def get_video_info(path):
 
     hours, minutes, seconds = match.groups()
 
-    duration = (
+    return int(
         int(hours) * 3600
         + int(minutes) * 60
         + float(seconds)
     )
-
-    return int(duration)
 
 
 def download_video(url):
@@ -71,3 +75,32 @@ def download_video(url):
         "duration": duration,
         "size": os.path.getsize(output_path)
     }
+
+
+def transcribe_video(path):
+    """
+    Распознаёт всю речь в видео.
+    Возвращает язык и фразы с таймкодами.
+    """
+
+    segments, info = whisper_model.transcribe(
+        path,
+        beam_size=1,
+        word_timestamps=True,
+        vad_filter=True
+    )
+
+    transcript = []
+
+    for segment in segments:
+        transcript.append({
+            "start": round(segment.start, 2),
+            "end": round(segment.end, 2),
+            "text": segment.text.strip()
+        })
+
+    return {
+        "language": info.language,
+        "segments": transcript
+    }
+
