@@ -22,13 +22,12 @@ def download_video(url):
     downloaded = gdown.download(
         id=file_id,
         output=output_path,
-        quiet=False,
-        fuzzy=True
+        quiet=False
     )
 
     if not downloaded or not os.path.exists(output_path):
         raise RuntimeError(
-            "Не удалось скачать файл. Проверь доступ по ссылке Google Drive."
+            "Не удалось скачать файл. Проверь доступ Google Drive."
         )
 
     return {
