@@ -14,7 +14,7 @@ from telegram.ext import (
     filters,
 )
 
-from downloader import download_video
+from downloader import download_video, transcribe_video
 
 logging.basicConfig(level=logging.INFO)
 
@@ -22,14 +22,13 @@ TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
 RENDER_URL = os.environ["RENDER_EXTERNAL_URL"].rstrip("/")
 PORT = int(os.environ.get("PORT", 10000))
 
-download_lock = asyncio.Lock()
+process_lock = asyncio.Lock()
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "🔥 SKINVEXX BOT\n\n"
-        "Отправь ссылку на видео из Google Drive.\n"
-        "Я загружу видео и подготовлю его к анализу."
+        "Отправь ссылку на видео из Google Drive."
     )
 
 
@@ -51,9 +50,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     url = match.group(0).rstrip(".,!?)]}")
     host = (urlparse(url).hostname or "").lower()
 
-    is_drive = host in ("drive.google.com", "www.drive.google.com")
-
-    if not is_drive:
+    if host not in ("drive.google.com", "www.drive.google.com"):
         await message.reply_text("❌ Сейчас поддерживаются ссылки Google Drive.")
         return
 
@@ -62,29 +59,51 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     status = await message.reply_text(
-        "⏳ Получил ссылку!\nНачинаю загрузку видео с Google Drive..."
+        "⏳ Получил ссылку!\nЗагружаю видео..."
     )
 
     try:
-        async with download_lock:
+        async with process_lock:
             result = await asyncio.to_thread(download_video, url)
 
-        duration = int(result.get("duration") or 0)
-        minutes, seconds = divmod(duration, 60)
+            await status.edit_text(
+                "✅ Видео загружено!\n\n"
+                "🎙 Начинаю распознавать всю речь.\n"
+                "Это может занять некоторое время..."
+            )
+
+            transcript = await asyncio.to_thread(
+                transcribe_video,
+                result["path"]
+            )
+
+        language = transcript["language"]
+        segments = transcript["segments"]
+
+        if segments:
+            full_text = "\n".join(
+                f"[{item['start']:.2f}–{item['end']:.2f}] {item['text']}"
+                for item in segments
+            )
+        else:
+            full_text = "Речь не обнаружена."
+
+        preview = full_text[:3000]
 
         await status.edit_text(
-            "✅ ВИДЕО ЗАГРУЖЕНО!\n\n"
-            f"🎬 {result['title']}\n"
-            f"⏱ Длительность: {minutes}:{seconds:02d}\n\n"
-            "Следующий этап: AI-анализ и поиск лучшего момента."
+            "✅ РАСПОЗНАВАНИЕ ЗАВЕРШЕНО!\n\n"
+            f"🎬 Видео: {result['title']}\n"
+            f"⏱ Длительность: {result['duration']} сек.\n"
+            f"🌐 Язык речи: {language}\n"
+            f"📝 Фрагментов речи: {len(segments)}\n\n"
+            f"{preview}"
         )
 
     except Exception:
-        logging.exception("Video download failed")
+        logging.exception("Video processing failed")
         await status.edit_text(
-            "❌ Не удалось загрузить видео.\n\n"
-            "Проверь, что доступ к файлу Google Drive открыт "
-            "для всех, у кого есть ссылка."
+            "❌ Ошибка при обработке видео.\n"
+            "Посмотри логи Render."
         )
 
 
@@ -108,4 +127,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
